@@ -2,7 +2,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import f1_score
 
 class F1ScoreCalculator(BaseEstimator, TransformerMixin):
-    def __init__(self, y_true,average='micro'):
+    def __init__(self, y_true=None,average='micro'):
         self.y_true = y_true
         self.average = average
 

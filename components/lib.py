@@ -5,7 +5,6 @@ import hashlib
 import re
 import time
 
-from memory_profiler import memory_usage
 from sklearn.metrics import silhouette_score
 import networkx as nx
 import numpy as np
@@ -111,7 +110,7 @@ def pretty_graph_drawing(G):
     graph_size = 5
     pos = nx.spring_layout(G)
     pos_1 = nx.spring_layout(G)
-    depth = G.number_of_nodes();
+    depth = G.number_of_nodes()
     for node in G.nodes:
         G.nodes[node]['depth'] = None
 
@@ -153,7 +152,7 @@ def pretty_graph_drawing(G):
     node_sizes = [G.nodes[n]['size'] for n in G.nodes()]
     node_colors = [G.nodes[n]['color'] for n in G.nodes()]
     print(pos)
-    nx.draw(G, pos=pos, with_labels=True, font_size=2, node_shape="r", node_size=node_sizes, node_color=node_colors)
+    nx.draw(G, pos=pos, with_labels=True, font_size=2, node_size=node_sizes, node_color=node_colors)
     plt.figure(figsize=(100, 100))
 
     plt.savefig("output.pdf", format="pdf")
@@ -701,9 +700,9 @@ def compute_pipeline_metrics(artifact_graph, pipeline, uid, X_train, X_test, y_t
             X_temp = step_obj.fit_transform(X_temp, y_train)
             step_end_time = time.time()
             step_time = step_end_time - step_start_time
-            mem_usage = memory_usage(lambda: step_obj.fit_transform(X_temp, y_train))
+            mem_usage = 0# memory_usage(lambda: step_obj.fit_transform(X_temp, y_train))
         elif hasattr(step_obj, 'fit'):
-            mem_usage = memory_usage(lambda: step_obj.fit(X_temp, y_train))
+            mem_usage = 0#memory_usage(lambda: step_obj.fit(X_temp, y_train))
             X_temp = step_obj.fit(X_temp, y_train)
             step_end_time = time.time()
             step_time = step_end_time - step_start_time

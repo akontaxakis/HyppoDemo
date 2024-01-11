@@ -1,49 +1,96 @@
+import copy
+import os
 import pickle
 
 import networkx as nx
 
-from components.parser.parser import add_dataset, split_data
+from components.history_manager import update_and_merge_graphs
+from components.lib import pretty_graph_drawing
+from components.parser.parser import add_dataset, split_data, execute_pipeline
 
 
 class HistoryGraph:
-    def __init__(self, history_id):
+    def __init__(self, history_id, directory=None):
         self.history_id = history_id
-        self.history = nx.DiGraph()
-        self.history.add_node("source", type="source", size=0, cc=0)
-        self.dataset_ids = []
+        if directory is None:
+            directory = 'saved_graphs'
+        file_path = os.path.join(directory, f"{self.history_id}.pkl")
+        if os.path.exists(file_path):
+            # Load the graph if it exists
+            with open(file_path, 'rb') as file:
+                saved_graph = pickle.load(file)
+            self.history = saved_graph.history
+            self.dataset_ids = saved_graph.dataset_ids
+        else:
+            self.history = nx.DiGraph()
+            self.history.add_node("source", type="source", size=0, cc=0)
+            self.dataset_ids = {}
+            self.save_to_file()
 
     def add_dataset(self, dataset):
         """
                :dataset: A unique identifier for the dataset.
                :param split_ratio: the split ratio to train and test
                """
-        self.dataset_ids.append(dataset)
-        X, y, self.history, cc = add_dataset(self.history, dataset)
+        self.dataset_ids[dataset] = 0
 
+        X, y, self.history, cc = add_dataset(self.history, dataset)
+        self.save_to_file()
+
+    # TODO add path to the dataset
     def add_dataset_split(self, dataset, split_ratio):
         """
                :dataset: A unique identifier for the dataset.
                :param split_ratio: the split ratio to train and test
                """
-        self.dataset_ids.append(dataset)
+        self.dataset_ids[dataset] = split_ratio
         X, y, self.history, cc = add_dataset(self.history, dataset)
         split_data(self.history, dataset, split_ratio, X, y, cc)
+        self.save_to_file()
 
-    def save_to_file(self, directory=""):
+    def save_to_file(self, directory=None):
         """
         Saves the HistoryGraph to a file named after its history_id.
         :param directory: The directory path where the file will be saved. TODO:select directory
         """
-        file_path = f"{directory}/{self.history_id}.pkl"
+        if directory is None:
+            directory = 'saved_graphs'  # Default to a 'saved_graphs' subdirectory
+            if not os.path.exists(directory):
+                os.makedirs(directory)  # Create the directory if it doesn't exist
+
+        file_path = os.path.join(directory, f"{self.history_id}.pkl")
         with open(file_path, 'wb') as file:
             pickle.dump(self, file)
 
     @staticmethod
-    def load_from_file(file_path):
+    def load_from_file(history_id, directory=None):
         """
-        Loads a HistoryGraph from a file.
-        :param file_path: The path to the file from which to load the graph.
+        Loads a HistoryGraph from a file using its history_id.
+        :param history_id: The history_id of the HistoryGraph to be loaded.
+        :param directory: The directory path where the file is saved.
         :return: The loaded HistoryGraph object.
         """
+        if directory is None:
+            directory = 'saved_graphs'
+
+        file_path = os.path.join(directory, f"{history_id}.pkl")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"No saved file found for history_id '{history_id}' in '{directory}'")
+
         with open(file_path, 'rb') as file:
             return pickle.load(file)
+
+    def visualize(self):
+        pretty_graph_drawing(self.history)
+
+    def get_dataset_ids(self):
+        print(self.dataset_ids)
+
+    def execute_and_add(self, dataset, pipeline, split_ratio):
+
+        self.dataset_ids[dataset]=split_ratio
+
+        execution_graph = execute_pipeline(dataset, pipeline, split_ratio)
+        self.history = update_and_merge_graphs(copy.deepcopy(self.history), execution_graph)
+
