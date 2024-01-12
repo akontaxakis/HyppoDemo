@@ -6,7 +6,8 @@ from sklearn import clone
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 
-from components.parser.sub_parser import compute_pipeline_metrics_training, compute_pipeline_metrics_evaluation
+from components.parser.sub_parser import execute_pipeline_training, execute_pipeline_evaluation, pipeline_training, \
+    pipeline_evaluation
 
 
 def sample(X_train, y_train, rate):
@@ -183,24 +184,23 @@ def execute_pipeline(dataset, pipeline, split_ratio):
     X_test, X_train, y_test, y_train = get_split(X, y, split_ratio)
     cc = time.time() - start_time
 
-
     artifacts = []
 
     new_pipeline = clone(pipeline)
 
+    artifact_graph, artifacts, new_pipeline, cc = execute_pipeline_training(artifact_graph, dataset, new_pipeline,
+                                                                            artifacts, X_train, y_train, cc)
+    artifact_graph, artifacts, request = execute_pipeline_evaluation(artifact_graph, dataset, new_pipeline,
+                                                                     artifacts, X_test, y_test, cc)
+    return artifact_graph, artifacts
 
-    artifact_graph, artifacts, new_pipeline,cc = compute_pipeline_metrics_training(artifact_graph, dataset, new_pipeline,
-                                                                                artifacts, X_train, y_train, cc)
-    artifact_graph, artifacts, request = compute_pipeline_metrics_evaluation(artifact_graph, dataset, new_pipeline,
-                                                                             artifacts, X_test, y_test,cc)
-    return artifact_graph
 
-
-def vizualize_pipeline(artifact_graph, dataset, pipeline):
+def extract_artifact_graph(dataset, pipeline):
+    artifact_graph = nx.DiGraph()
     artifacts = []
     new_pipeline = clone(pipeline)
-    artifact_graph, artifacts, new_pipeline = compute_pipeline_metrics_training(artifact_graph, dataset, new_pipeline,
-                                                                                artifacts)
-    artifact_graph, artifacts, request = compute_pipeline_metrics_evaluation(artifact_graph, dataset, new_pipeline,
-                                                                             artifacts)
+    artifact_graph = pipeline_training(artifact_graph, dataset, new_pipeline)
+    artifact_graph, request = pipeline_evaluation(artifact_graph, dataset, new_pipeline)
     return artifact_graph
+
+

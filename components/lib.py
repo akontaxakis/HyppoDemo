@@ -337,24 +337,8 @@ def graphviz_draw_with_requests(G, mode, requested_nodes):
 
     # plt.savefig("output.pdf", format="pdf")
     # plt.show()
-
-
-def graphviz_draw(G, mode):
-    from IPython.display import Image
-
-    # Convert the networkx graph to a pygraphviz graph
-
-    # Customize appearance if needed
-    # For example, you can modify node shapes, colors, edge types, etc.
-    graph_size = 5
-    pos = nx.spring_layout(G)
-    pos_1 = nx.spring_layout(G)
-    depth = G.number_of_nodes();
-    for node in G.nodes:
-        G.nodes[node]['depth'] = None
-
+def graphviz_simple_draw(G):
     # Compute and set depth for each node
-    compute_depth(G, 'source')
     blue_nodes = []
     for node_id in G.nodes:
         if node_id == 'source':
@@ -364,22 +348,13 @@ def graphviz_draw(G, mode):
             G.nodes[node_id]['size'] = 100
             G.nodes[node_id]['shape'] = 'rectangle'
 
-        elif G.nodes[node_id]['type'] == 'split':
+        elif G.nodes[node_id]['type'] == 'super' or G.nodes[node_id]['type'] == 'split':
             # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
             # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
             G.nodes[node_id]['color'] = 'blue'
-            G.nodes[node_id]['size'] = 10
-            G.nodes[node_id]['shape'] = 'rectangle'
-            G.nodes[node_id]['shape'] = 'circle'
-            G.nodes[node_id]['width'] = 0.3
-            blue_nodes.append(node_id)
-
-        elif G.nodes[node_id]['type'] == 'super':
-            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
-            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
-            G.nodes[node_id]['color'] = 'blue'
-            G.nodes[node_id]['shape'] = 'circle'
-            G.nodes[node_id]['width'] = 0.3
+            G.nodes[node_id]['edgecolors'] = 'blue'
+            G.nodes[node_id]['shape'] = 'point'
+            G.nodes[node_id]['width'] = 0.1
             blue_nodes.append(node_id)
 
         elif G.nodes[node_id]['type'] == 'fitted_operator':
@@ -396,15 +371,14 @@ def graphviz_draw(G, mode):
             G.nodes[node_id]['size'] = 100
             G.nodes[node_id]['shape'] = 'rectangle'
 
-    node_sizes = [G.nodes[n]['size'] for n in G.nodes()]
-    node_colors = [G.nodes[n]['color'] for n in G.nodes()]
-    labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    labels = {node: "" if node in blue_nodes else str(G.nodes[node]['alias']) for node in G.nodes()}
     for node, label in labels.items():
         G.nodes[node]['label'] = label
     A = nx.nx_agraph.to_agraph(G)
     A.graph_attr['rankdir'] = 'LR'
     for edge in A.edges():
-        edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 10000)
+        edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
+        edge.attr['style'] = "bold"
     # Save the graph to a file
     file_path = "graph_output.png"
     A.layout(prog='dot')
@@ -416,11 +390,59 @@ def graphviz_draw(G, mode):
     elif os.name == 'nt':  # For Windows
         os.startfile(file_path)
 
-    # nx.draw(G, pos=pos, with_labels=True, font_size=2,node_shape="r", node_size=node_sizes, node_color=node_colors)
-    # plt.figure(figsize=(100, 100))
+def graphviz_draw(G):
 
-    # plt.savefig("output.pdf", format="pdf")
-    # plt.show()
+    # Compute and set depth for each node
+    blue_nodes = []
+    for node_id in G.nodes:
+        if node_id == 'source':
+            # pos[node_id] = np.array([0, depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), 0])
+            G.nodes[node_id]['color'] = 'red'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+
+        elif G.nodes[node_id]['type'] == 'super' or G.nodes[node_id]['type'] == 'split':
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'blue'
+            G.nodes[node_id]['edgecolors'] = 'blue'
+            G.nodes[node_id]['shape'] = 'point'
+            G.nodes[node_id]['width'] = 0.1
+            blue_nodes.append(node_id)
+
+        elif G.nodes[node_id]['type'] == 'fitted_operator':
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'green'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+
+        else:
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'purple'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+
+    labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    for node, label in labels.items():
+        G.nodes[node]['label'] = label
+    A = nx.nx_agraph.to_agraph(G)
+    A.graph_attr['rankdir'] = 'LR'
+    for edge in A.edges():
+        edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
+        edge.attr['style'] = "bold"
+    # Save the graph to a file
+    file_path = "graph_output.png"
+    A.layout(prog='dot')
+    A.draw(file_path)
+
+    # Open the saved image file with the default viewer
+    if os.name == 'posix':
+        os.system(f'open {file_path}')
+    elif os.name == 'nt':  # For Windows
+        os.startfile(file_path)
 
 
 def compute_depth(graph, node, parent=None):

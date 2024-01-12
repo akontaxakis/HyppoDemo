@@ -40,8 +40,11 @@ def rank_based_materializer_frequency(artifacts, Budget):
     return materialized_artifacts
 
 
-def add_load_tasks_to_the_graph(shared_artifact_graph, materialized_artifacts, loading_speed):
+def add_load_tasks_to_the_graph(shared_artifact_graph, materialized_artifacts):
     platforms = []
+    #TODO change that
+    loading_speed = 566255240
+
     platforms.append("python")
     limited_shared_graph = shared_artifact_graph.copy()
     for artifact in materialized_artifacts:
