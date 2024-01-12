@@ -9,7 +9,6 @@ from dictionary.Evaluation.F1_score import F1ScoreCalculator
 from dictionary.PCA.GPU__PCA import GPU__PCA
 import os
 
-os.chdir("C:/Users/adoko/PycharmProjects/HyppoDemo/")
 
 if __name__ == '__main__':
     from components.HistoryGraph import HistoryGraph
