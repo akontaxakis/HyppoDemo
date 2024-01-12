@@ -8,7 +8,7 @@ from pympler import asizeof
 
 from components.lib import extract_platform, extract_first_two_chars, update_graph, get_steps
 
-os.chdir("C:/Users/adoko/PycharmProjects/pythonProject1")
+
 
 
 def execute_pipeline_training(artifact_graph, dataset, pipeline, artifacts, X_train, y_train, cc):
