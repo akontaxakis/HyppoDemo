@@ -6,9 +6,14 @@ import networkx as nx
 
 from components.augmenter import new_edges
 from components.history_manager import update_and_merge_graphs, add_load_tasks_to_the_graph
-from components.lib import pretty_graph_drawing
+from components.lib import pretty_graph_drawing, graphviz_draw, graphviz_simple_draw
 from components.parser.parser import add_dataset, split_data, execute_pipeline
 from components.parser.sub_parser import pipeline_training, pipeline_evaluation
+
+
+def exhaustive_optimizer(required_artifacts, history):
+
+    pass
 
 
 class HistoryGraph:
@@ -83,8 +88,11 @@ class HistoryGraph:
         with open(file_path, 'rb') as file:
             return pickle.load(file)
 
-    def visualize(self):
-        pretty_graph_drawing(self.history)
+    def visualize(self, mode='none'):
+        if mode == "simple":
+            graphviz_simple_draw(self.history)
+        else:
+            graphviz_draw(self.history, "without_load")
 
     def get_dataset_ids(self):
         print(self.dataset_ids)
@@ -93,9 +101,10 @@ class HistoryGraph:
 
         self.dataset_ids[dataset] = split_ratio
 
-        execution_graph, artifacts = execute_pipeline(dataset, pipeline, split_ratio)
+        execution_graph, artifacts, request = execute_pipeline(dataset, pipeline, split_ratio)
         self.history = update_and_merge_graphs(copy.deepcopy(self.history), execution_graph)
         self.history = add_load_tasks_to_the_graph(self.history, artifacts)
+        return request
 
     def generate_plans(self, dataset, pipeline):
         artifact_graph = nx.DiGraph()
@@ -105,7 +114,7 @@ class HistoryGraph:
         print(request)
         required_artifacts, extra_cost_1, new_tasks = new_edges(self.history, artifact_graph)
         print(required_artifacts)
-
+        exhaustive_optimizer(required_artifacts,self.history)
         return artifact_graph
 
 

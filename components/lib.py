@@ -1,9 +1,13 @@
+import inspect
 import os
 import pickle
 import random
 import hashlib
 import re
 import time
+import webbrowser
+
+from IPython.display import Image, display
 
 from sklearn.metrics import silhouette_score
 import networkx as nx
@@ -11,7 +15,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from components.augmenter import map_node
-
 
 def load_artifact_graph(artifact_graph, sum, uid, objective, dataset, graph_dir="graphs", mode="eq_"):
     os.makedirs(graph_dir, exist_ok=True)
@@ -382,15 +385,15 @@ def graphviz_simple_draw(G):
     # Save the graph to a file
     file_path = "graph_output.png"
     A.layout(prog='dot')
-    A.draw(file_path)
-
+    png = A.draw(format='png')
+    display(Image(png))
     # Open the saved image file with the default viewer
-    if os.name == 'posix':
-        os.system(f'open {file_path}')
-    elif os.name == 'nt':  # For Windows
-        os.startfile(file_path)
+    #if os.name == 'posix':
+    #    os.system(f'open {file_path}')
+    #elif os.name == 'nt':  # For Windows
+    #    os.startfile(file_path)
 
-def graphviz_draw(G):
+def graphviz_draw(G, mode='notebook'):
 
     # Compute and set depth for each node
     blue_nodes = []
@@ -434,15 +437,21 @@ def graphviz_draw(G):
         edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
         edge.attr['style'] = "bold"
     # Save the graph to a file
-    file_path = "graph_output.png"
     A.layout(prog='dot')
-    A.draw(file_path)
 
+    if(mode!='notebook'):
+        file_path = 'graph.png'
+        A.draw(file_path)
+        webbrowser.open('file://' + os.path.realpath(file_path))
+
+    else:
+        png = A.draw(format='png')
+        display(Image(png))
     # Open the saved image file with the default viewer
-    if os.name == 'posix':
-        os.system(f'open {file_path}')
-    elif os.name == 'nt':  # For Windows
-        os.startfile(file_path)
+    #if os.name == 'posix':
+    #    os.system(f'open {file_path}')
+    #elif os.name == 'nt':  # For Windows
+    #    os.startfile(file_path)
 
 
 def compute_depth(graph, node, parent=None):
@@ -653,218 +662,10 @@ def compute_loading_times(metrics_dir='metrics', artifacts_dir='artifacts'):
     return loading_times
 
 
-def fit_pipeline_with_artifacts(pipeline, X_train, y_train):
-    artifacts = {}
-    X_temp = X_train.copy()
 
-    for step_name, step_transformer in pipeline.steps[:-1]:  # Exclude the classifier step
-        X_temp = step_transformer.fit_transform(X_temp, y_train)
-        artifacts[step_name] = X_temp.copy()
-
-    # Fit the classifier step
-    step_name, step_transformer = pipeline.steps[-1]
-    step_transformer.fit(X_temp, y_train)
-    artifacts[step_name] = step_transformer
-
-    return artifacts
-
-
-def fit_pipeline_with_store_or_load_artifacts(pipeline, X_train, y_train, materialization, artifact_dir='artifacts'):
-    os.makedirs(artifact_dir, exist_ok=True)
-    artifacts = {}
-    X_temp = X_train.copy()
-    artifact_name = ""
-    for step_name, step_transformer in pipeline.steps[:-1]:  # Exclude the classifier step
-        artifact_name = artifact_name + str(step_transformer) + "_";
-        artifact_path = os.path.join(artifact_dir, f"{artifact_name}.pkl")
-
-        if os.path.exists(artifact_path):
-            with open(artifact_path, 'rb') as f:
-                print("load" + artifact_name)
-                X_temp = pickle.load(f)
-        else:
-            X_temp = step_transformer.fit_transform(X_temp, y_train)
-            if random.randint(1, 100) < materialization:
-                with open(artifact_path, 'wb') as f:
-                    pickle.dump(X_temp, f)
-
-        artifacts[step_name] = X_temp.copy()
-
-    # Fit the classifier step
-    step_name, step_transformer = pipeline.steps[-1]
-    step_transformer.fit(X_temp, y_train)
-    artifacts[step_name] = step_transformer
-
-    return artifacts
-
-
-def compute_pipeline_metrics(artifact_graph, pipeline, uid, X_train, X_test, y_train, y_test, artifacts, mode,
-                             scores_dir='metrics', artifact_dir='artifacts', models_dir='models',
-                             materialization=0):
-    os.makedirs(scores_dir, exist_ok=True)
-    scores_file = uid + "_scores"
-    scores_path = os.path.join(scores_dir, f"{scores_file}.txt")
-
-    if mode == "sampling":
-        hs_previous = "2sample_X_train__"
-    else:
-        hs_previous = "X_train__"
-    X_temp = X_train.copy()
-    step_full_name = hs_previous
-    for step_name, step_obj in pipeline.steps:
-
-        step_start_time = time.time()
-        step_full_name = step_full_name + str(step_obj) + "__"
-        hs_current = extract_first_two_chars(step_full_name)
-        artifact_path = os.path.join(artifact_dir, f"{hs_current}.pkl")
-        models_path = os.path.join(models_dir, f"{hs_current}.pkl")
-        if hasattr(step_obj, 'fit_transform'):
-            X_temp = step_obj.fit_transform(X_temp, y_train)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-            mem_usage = 0# memory_usage(lambda: step_obj.fit_transform(X_temp, y_train))
-        elif hasattr(step_obj, 'fit'):
-            mem_usage = 0#memory_usage(lambda: step_obj.fit(X_temp, y_train))
-            X_temp = step_obj.fit(X_temp, y_train)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-
-        if hasattr(step_obj, 'predict'):
-            # step_obj.predict(X_test)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-
-        if random.randint(1, 100) < materialization:
-            if hasattr(step_obj, 'predict'):
-                artifacts.append(hs_current)
-                with open(models_path, 'wb') as f:
-                    pickle.dump(X_temp, f)
-            else:
-                artifacts.append(hs_current)
-                with open(artifact_path, 'wb') as f:
-                    pickle.dump(X_temp, f)
-
-        if hs_previous == "":
-            artifact_graph.add_node(hs_current)
-            artifact_graph.add_edge("source", hs_current, weight=step_time, execution_time=step_time,
-                                    memory_usage=max(mem_usage))
-            hs_previous = hs_current
-        else:
-            artifact_graph.add_node(hs_current)
-            artifact_graph.add_edge(hs_previous, hs_current, weight=step_time, execution_time=step_time,
-                                    memory_usage=max(mem_usage))
-            hs_previous = hs_current
-
-    end_time = time.time()
-    step_start_time = time.time()
-
-    # Check if the pipeline has a classifier
-    has_classifier = any(step_name == 'classifier' for step_name, _ in pipeline.steps)
-
-    if has_classifier:
-        step_start_time = time.time()
-        pipeline.fit(X_train, y_train)
-        score = pipeline.score(X_test, y_test)
-        end_time = time.time()
-        rounded_score = keep_two_digits(score)
-        node_name = str(extract_first_two_chars(step_full_name)[-2:]) + "_" + str(rounded_score)
-        with open(scores_path, "a") as outfile:
-            outfile.write("\n")
-            outfile.write(f'"{step_full_name}","{score}","{node_name}","{end_time - step_start_time}"')
-
-    return artifact_graph, artifacts
-
-
-def compute_pipeline_metrics_old(artifact_graph, pipeline, uid, X_train, X_test, y_train, y_test,
-                                 metrics_dir='metrics'):
-    os.makedirs(metrics_dir, exist_ok=True)
-    file_name = uid + "_steps_metrics"
-    file_name_2 = uid + "_pipelines_score"
-    metrics_path = os.path.join(metrics_dir, f"{file_name}.pkl")
-    scores_path = os.path.join(metrics_dir, f"{file_name_2}.txt")
-    if os.path.exists(metrics_path):
-        with open(metrics_path, 'rb') as f:
-            print("load" + metrics_path)
-            step_times = pickle.load(f)
-    else:
-        step_times = []
-    start_time = time.time()
-
-    step_full_name = ""
-    previous = ""
-
-    for step_name, step_obj in pipeline.steps:
-        step_start_time = time.time()
-        step_full_name = step_full_name + str(step_obj) + "__"
-        hs_previous = extract_first_two_chars(previous)
-        hs_current = extract_first_two_chars(step_full_name)
-
-        if hasattr(step_obj, 'fit_transform'):
-            step_obj.fit_transform(X_train, y_train)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-            step_times.append((step_full_name, step_time))
-
-        elif hasattr(step_obj, 'fit'):
-            step_obj.fit(X_train, y_train)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-            step_times.append((step_full_name, step_time))
-
-        elif hasattr(step_obj, 'predict'):
-            step_obj.predict(X_test)
-            step_end_time = time.time()
-            step_time = step_end_time - step_start_time
-            step_times.append((step_full_name, step_time))
-
-        if previous == "":
-            artifact_graph.add_node(hs_current)
-            artifact_graph.add_edge("source", hs_current, cost=step_time)
-            previous = step_full_name
-        else:
-            artifact_graph.add_node(hs_current)
-            artifact_graph.add_edge(hs_previous, hs_current, cost=step_time)
-            previous = step_full_name
-
-    end_time = time.time()
-    step_start_time = time.time()
-
-    # Check if the pipeline has a classifier
-    has_classifier = any(step_name == '3.classifier' for step_name, _ in pipeline.steps)
-
-    has_clustering = any(step_name == 'clustering' for step_name, _ in pipeline.steps)
-
-    if has_classifier:
-        pipeline.fit(X_train, y_train)
-        score = pipeline.score(X_test, y_test)
-        step_time = step_end_time - step_start_time
-        step_times.append((step_full_name + "score_time", step_time))
-        step_times.append((step_full_name + "score", score))
-        with open(scores_path, "a") as outfile:
-            outfile.write("\n")
-            outfile.write(f'"{step_full_name}","{score}"')
-
-    if has_clustering:
-        pipeline.fit(X_train, y_train)
-        labels = pipeline.predict(X_test)
-        score = silhouette_score(X_test, labels)
-        step_time = step_end_time - step_start_time
-        step_times.append((step_full_name + "score_time", step_time))
-        step_times.append((step_full_name + "score", score))
-        with open(scores_path, "a") as outfile:
-            outfile.write("\n")
-            outfile.write(f'"{step_full_name}","{score}"')
-    with open(metrics_path, 'wb') as f:
-        pickle.dump(step_times, f)
-    # print("Pipeline execution time: {}".format(total_time))
-    # for step_name, step_time in step_times:
-    #     print("Step '{}' execution time: {}".format(step_name, step_time))
-    return step_times, artifact_graph
-
-
-def update_graph(artifact_graph, mem_usage, step_time, param, hs_previous, hs_current, platforms):
+def update_graph(artifact_graph, mem_usage, step_time, param, hs_previous, hs_current, platforms, objective):
     artifact_graph.add_edge(hs_previous, hs_current + "_" + param, type=param, weight=step_time,
-                            execution_time=step_time, memory_usage=max(mem_usage), platform=platforms)
+                            execution_time=step_time, memory_usage=max(mem_usage), platform=platforms, function=objective)
     return hs_current + "_" + param
 
 
@@ -903,3 +704,84 @@ def create_4_digit_signature(input_string):
     short_hash = numeric_hash % 10000
 
     return f"{short_hash:04}"  # Return the number as a zero-padded string
+
+
+def execute_graph(dataset_id, artifact_graph):
+    ### EXECUTING A GRAPH
+    pipeline_description = None
+    memory_artifacts = {}
+    train_data = None
+    trainy = None
+    testy = None
+    test_data = None
+    trainy = retrieve_artifact(dataset_id + "_trainy__")
+    testy = retrieve_artifact(dataset_id + "_testy__")
+    memory_artifacts[dataset_id + "_trainy__"] = trainy
+    memory_artifacts[dataset_id + "_testy__"] = testy
+
+    if nx.is_directed_acyclic_graph(artifact_graph):
+        # Print edges in topological order
+        #print("\nEdges in topological order:")
+        for node in nx.topological_sort(artifact_graph):
+            if artifact_graph.in_degree(node) == 0:
+                memory_artifacts[node] = retrieve_artifact(node)
+                if 'test' in node:
+                    if test_data == None:
+                        test_data = memory_artifacts.get(node)
+                elif 'train' in node:
+                    if train_data == None:
+                        train_data = memory_artifacts.get(node)
+            for _, neighbor, data in artifact_graph.edges(node, data=True):
+                #print(f"({node}, {neighbor})")
+                operator = data.get('function', 'No function attribute')
+                function = data.get('type', 'No function attribute')
+                ## FIT
+                if function == 'fit':
+                    args = inspect.signature(operator.fit).parameters
+                    requires_y = 'y' in args
+                    if requires_y:
+                        fit_result = operator.fit(train_data, trainy)
+                    else:
+                        fit_result = operator.fit(train_data)
+                    memory_artifacts[neighbor] = fit_result
+
+                ## TRANSFORM
+                elif 'tranform' in function:
+                    last_underscore_index = node.rfind('_')
+                    # Slice the string up to the last underscore
+                    if last_underscore_index != -1:  # Check if '_' is found
+                        operator = memory_artifacts.get(node[:last_underscore_index])
+                        if function == 'ftranform':
+                            fit_result = operator.transform(train_data)
+                            memory_artifacts[neighbor] = fit_result
+                            train_data = fit_result
+                        elif function == 'tetranform':
+                            fit_result = operator.transform(test_data)
+                            memory_artifacts[neighbor] = fit_result
+                            test_data = fit_result
+                ## PREDICT
+                elif 'predict' in function:
+                    last_underscore_index = node.rfind('_')
+                    # Slice the string up to the last underscore
+                    if last_underscore_index != -1:  # Check if '_' is found
+                        operator = memory_artifacts.get(node[:last_underscore_index])
+                    predictions = operator.predict(test_data)
+                    memory_artifacts[neighbor] = predictions
+                ## SCORE
+                elif 'score' in function:
+                    fitted_operator = operator.fit(testy)
+                    predictions = memory_artifacts[node]
+                    X_temp = fitted_operator.score(predictions)
+                #print(operator)
+                #print(function)
+    else:
+        print("Graph is not a DAG. Cannot perform topological sort.")
+
+def retrieve_artifact(hs_current, directory=None):
+    if directory is None:
+        directory = 'artifact_storage'  # Default to a 'artifact_storage' subdirectory
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    file_path = os.path.join(directory, f"{hs_current}.pkl")
+    with open(file_path, 'rb') as file:
+        return pickle.load(file)

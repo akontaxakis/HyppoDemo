@@ -7,7 +7,7 @@ from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 
 from components.parser.sub_parser import execute_pipeline_training, execute_pipeline_evaluation, pipeline_training, \
-    pipeline_evaluation
+    pipeline_evaluation, store_artifact
 
 
 def sample(X_train, y_train, rate):
@@ -161,19 +161,22 @@ def split_data(artifact_graph, dataset, split_ratio, X, y, cc):
     step_time = end_time - start_time
     cc = cc + step_time
 
-    artifact_graph.add_node(dataset + "_train__", type="training", size=X_train.__sizeof__(), cc=cc, frequency=1)
-    artifact_graph.add_node(dataset + "_test__", type="test", size=X_test.__sizeof__(), cc=cc, frequency=1)
+    artifact_graph.add_node(dataset + "_trainX__", type="training", size=X_train.__sizeof__(), cc=cc, frequency=1)
+    artifact_graph.add_node(dataset + "_testX__", type="test", size=X_test.__sizeof__(), cc=cc, frequency=1)
+    artifact_graph.add_node(dataset + "_trainy__", type="training", size=y_train.__sizeof__(), cc=cc, frequency=1)
+    artifact_graph.add_node(dataset + "_testy__", type="test", size=y_test.__sizeof__(), cc=cc, frequency=1)
     artifact_graph.add_node(dataset + "_split", type="split", size=0, cc=0, frequency=1)
 
     artifact_graph.add_edge(dataset, dataset + "_split", type="split", weight=step_time, execution_time=step_time,
                             memory_usage=max(mem_usage), platform=platforms)
-    artifact_graph.add_edge(dataset + "_split", dataset + "_train__", type="split", weight=0.000001, execution_time=0,
+    artifact_graph.add_edge(dataset + "_split", dataset + "_trainX__", type="split", weight=0.000001, execution_time=0,
                             memory_usage=0, platform=platforms)
-    # G.add_edge("split", "X_test",weight=0, execution_time=0,
-    #           memory_usage=0)
-    artifact_graph.add_edge(dataset + "_split", dataset + "_test__", type="split", weight=0.000001, execution_time=0,
+    artifact_graph.add_edge(dataset + "_split", dataset + "_testX__", type="split", weight=0.000001, execution_time=0,
                             memory_usage=0, platform=platforms)
-
+    artifact_graph.add_edge(dataset + "_split", dataset + "_trainy__", type="split", weight=0.000001, execution_time=0,
+                            memory_usage=0, platform=platforms)
+    artifact_graph.add_edge(dataset + "_split", dataset + "_testy__", type="split", weight=0.000001, execution_time=0,
+                            memory_usage=0, platform=platforms)
     return artifact_graph, X_test, X_train, y_test, y_train, cc
 
 
@@ -184,7 +187,19 @@ def execute_pipeline(dataset, pipeline, split_ratio):
     X_test, X_train, y_test, y_train = get_split(X, y, split_ratio)
     cc = time.time() - start_time
 
+
+
     artifacts = []
+
+    # STORE ARTIFACT
+    artifacts.append(dataset  + "_trainX__")
+    store_artifact(dataset  + "_trainX__", X_train)
+    artifacts.append(dataset + "_testX__")
+    store_artifact(dataset + "_testX__", X_test)
+    artifacts.append(dataset + "_trainy__")
+    store_artifact(dataset + "_trainy__", y_train)
+    artifacts.append(dataset + "_testy__")
+    store_artifact(dataset + "_testy__", y_test)
 
     new_pipeline = clone(pipeline)
 
@@ -192,7 +207,7 @@ def execute_pipeline(dataset, pipeline, split_ratio):
                                                                             artifacts, X_train, y_train, cc)
     artifact_graph, artifacts, request = execute_pipeline_evaluation(artifact_graph, dataset, new_pipeline,
                                                                      artifacts, X_test, y_test, cc)
-    return artifact_graph, artifacts
+    return artifact_graph, artifacts, request
 
 
 def extract_artifact_graph(dataset, pipeline):
@@ -204,3 +219,5 @@ def extract_artifact_graph(dataset, pipeline):
     return artifact_graph
 
 
+def graph_to_pipeline(artifact_graph):
+    pass
