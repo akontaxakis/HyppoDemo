@@ -393,7 +393,7 @@ def graphviz_simple_draw(G):
     #elif os.name == 'nt':  # For Windows
     #    os.startfile(file_path)
 
-def graphviz_draw(G, mode='notebook'):
+def graphviz_draw(G, type='notebook', mode='simple'):
 
     # Compute and set depth for each node
     blue_nodes = []
@@ -427,19 +427,24 @@ def graphviz_draw(G, mode='notebook'):
             G.nodes[node_id]['color'] = 'purple'
             G.nodes[node_id]['size'] = 100
             G.nodes[node_id]['shape'] = 'rectangle'
-
-    labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    if mode != 'full':
+        labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    else:
+        labels = {node: "" if node in blue_nodes else (str(node) +"["+ G.nodes[node]['type'] + "]") for node in G.nodes()}
     for node, label in labels.items():
         G.nodes[node]['label'] = label
     A = nx.nx_agraph.to_agraph(G)
     A.graph_attr['rankdir'] = 'LR'
     for edge in A.edges():
-        edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
+        if mode != 'full':
+            edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
+        else:
+            edge.attr['label'] = str(int(G[edge[0]][edge[1]]['weight'] * 1000)) +"["+ G[edge[0]][edge[1]]['type'] + "]"
         edge.attr['style'] = "bold"
     # Save the graph to a file
     A.layout(prog='dot')
 
-    if(mode!='notebook'):
+    if(type!='notebook'):
         file_path = 'graph.png'
         A.draw(file_path)
         webbrowser.open('file://' + os.path.realpath(file_path))
@@ -746,16 +751,16 @@ def execute_graph(dataset_id, artifact_graph):
                     memory_artifacts[neighbor] = fit_result
 
                 ## TRANSFORM
-                elif 'tranform' in function:
+                elif 'transform' in function:
                     last_underscore_index = node.rfind('_')
                     # Slice the string up to the last underscore
                     if last_underscore_index != -1:  # Check if '_' is found
                         operator = memory_artifacts.get(node[:last_underscore_index])
-                        if function == 'ftranform':
+                        if function == 'ftransform':
                             fit_result = operator.transform(train_data)
                             memory_artifacts[neighbor] = fit_result
                             train_data = fit_result
-                        elif function == 'tetranform':
+                        elif function == 'tetransform':
                             fit_result = operator.transform(test_data)
                             memory_artifacts[neighbor] = fit_result
                             test_data = fit_result

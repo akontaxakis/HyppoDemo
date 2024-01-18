@@ -17,9 +17,9 @@ if __name__ == '__main__':
     from components.HistoryGraph import HistoryGraph
     dataset_id = "HIGGS"
     History = HistoryGraph("test_history")
-    History.visualize("sd")
+    #History.visualize("sd")
     History.add_dataset_split(dataset_id, 0.3)
-    History.visualize("sd")
+    #History.visualize("sd")
 
     user1_pipe = Pipeline(
         [('scaler', StandardScaler()), ('pca', GPU__PCA(n_components=3)), ('svc', SVC()), ('F1', F1ScoreCalculator())])
@@ -27,11 +27,11 @@ if __name__ == '__main__':
     split_ratio = 0.3
     request = History.execute_and_add(dataset_id, user1_pipe, split_ratio)
 
-    #History.visualize()
+    History.visualize("pycharm","full")
 
-    History.generate_plans(dataset_id, user1_pipe)
-
-
+    plans = History.generate_plans(dataset_id, user1_pipe)
+    #plan = plans.pop(0)
+   #graphviz_draw(plan,type='pycharm', mode='full')
     #graphviz_draw(artifact_graph,"normal")
 
     #execute_graph(dataset_id, artifact_graph)

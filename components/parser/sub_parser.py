@@ -74,19 +74,19 @@ def execute_pipeline_training(artifact_graph, dataset, pipeline, artifacts, X_tr
             step_time = step_end_time - step_start_time
 
             # STORE ARTIFACT
-            artifacts.append(hs_current + "_ftranform")
-            store_artifact(hs_current + "_ftranform", X_temp)
+            artifacts.append(hs_current + "_ftransform")
+            store_artifact(hs_current + "_ftransform", X_temp)
 
             cc = cc + step_time
             # tmp = X_temp.__sizeof__()
             artifact_graph.add_node(fitted_operator_name + "_super", type="super", size=0, cc=0, frequency=1)
-            artifact_graph.add_node(hs_current + "_ftranform", type="train", size=X_temp.size * X_temp.itemsize, cc=cc,
+            artifact_graph.add_node(hs_current + "_ftransform", type="train", size=X_temp.size * X_temp.itemsize, cc=cc,
                                     frequency=1)
             artifact_graph.add_edge(fitted_operator_name, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
-            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "ftranform",
+            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "ftransform",
                                        fitted_operator_name + "_super", hs_current, platforms,step_obj)
 
     return artifact_graph, artifacts, pipeline, cc
@@ -118,10 +118,10 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
             step_end_time = time.time()
             step_time = step_end_time - step_start_time
             # STORE ARTIFACT
-            store_artifact(hs_current + "_tetranform", X_temp)
-            artifacts.append(hs_current + "_tetranform")
+            store_artifact(hs_current + "_tetransform", X_temp)
+            artifacts.append(hs_current + "_tetransform")
 
-            artifact_graph.add_node(hs_current + "_tetranform", type="test", size=X_temp.size * X_temp.itemsize,
+            artifact_graph.add_node(hs_current + "_tetransform", type="test", size=X_temp.size * X_temp.itemsize,
                                     cc=cc + step_time, frequency=1)
             artifact_graph.add_node(fitted_operator_name + "_Tsuper", type="super", size=0, cc=0, frequency=1)
 
@@ -129,7 +129,7 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_Tsuper", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
-            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "tetranform",
+            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "tetransform",
                                        fitted_operator_name + "_Tsuper", hs_current, platforms,step_obj)
 
         if hasattr(step_obj, 'predict'):
@@ -226,13 +226,13 @@ def pipeline_training(artifact_graph, dataset, pipeline):
             # tmp = X_temp.__sizeof__()
             artifact_graph.add_node(fitted_operator_name + "_super", type="super", size=0, cc=0, frequency=1,
                                     alias="super")
-            artifact_graph.add_node(hs_current + "_ftranform", type="train", size=0, cc=cc,
+            artifact_graph.add_node(hs_current + "_ftransform", type="train", size=0, cc=cc,
                                     frequency=1, alias=step_name)
             artifact_graph.add_edge(fitted_operator_name, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
-            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "ftranform",
+            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "ftransform",
                                        fitted_operator_name + "_super", hs_current, platforms, step_obj)
 
     return artifact_graph
@@ -260,7 +260,7 @@ def pipeline_evaluation(artifact_graph, dataset, pipeline):
             cc = artifact_graph.nodes[fitted_operator_name]['cc']
             mem_usage = [0, 0]  # memory_usage(lambda: step_obj.transform(X_temp))
 
-            artifact_graph.add_node(hs_current + "_tetranform", type="test", size=0,
+            artifact_graph.add_node(hs_current + "_tetransform", type="test", size=0,
                                     cc=cc + step_time, frequency=1, alias=step_name)
             artifact_graph.add_node(fitted_operator_name + "_Tsuper", type="super", size=0, cc=0, frequency=1,
                                     alias="super")
@@ -269,7 +269,7 @@ def pipeline_evaluation(artifact_graph, dataset, pipeline):
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_Tsuper", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
-            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "tetranform",
+            hs_previous = update_graph(artifact_graph, mem_usage, step_time, "tetransform",
                                        fitted_operator_name + "_Tsuper", hs_current, platforms, step_obj)
 
         if hasattr(step_obj, 'predict'):

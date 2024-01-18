@@ -11,9 +11,76 @@ from components.parser.parser import add_dataset, split_data, execute_pipeline
 from components.parser.sub_parser import pipeline_training, pipeline_evaluation
 
 
-def exhaustive_optimizer(required_artifacts, history):
+def CartesianProduct(sets):
+    if len(sets) == 0:
+        return [[]]
+    else:
+        CP = []
+        current = sets.popitem()
+        for c in current[1]:
+            for set in CartesianProduct(sets):
+                CP.append(set + [c])
+        sets[current[0]] = current[1]
+        return CP
 
-    pass
+
+def bstar(A, v):
+    return A.in_edges(v)
+
+
+def Expand(A, pi):
+    PI = []
+    E = {}
+    #GET THE EDGES
+    for v in [v_prime for v_prime in pi['frontier'] if v_prime not in ['source']]:
+        E[v] = bstar(A, v)
+    #Find all possible moves
+    M = CartesianProduct(E)
+    for move in M:
+        pi_prime = {
+            'cost': pi['cost'],
+            'visited': pi['visited'].copy(),
+            'frontier': [],
+            'plan': pi['plan'].copy()
+        }
+        for e in move:
+            edge_data = A.get_edge_data(*e)
+            extra_edges = []
+            if 'super' in e[0] or 'split' in e[0]:
+                head = list(A.successors(e[0]))
+                tail = list(A.predecessors(e[0]))
+                extra_edges += list(A.in_edges(e[0]))
+                extra_edges += list(A.out_edges(e[0]))
+            else:
+                head = [e[1]]
+                tail = [e[0]]
+            #if e[1] not in pi_prime['visited']:
+            #    new_nodes = e[1]
+            new_nodes = [n for n in head if n not in pi_prime['visited']]
+            if new_nodes:
+                pi_prime['cost'] += int(10000 * edge_data.get('weight', 0))
+                pi_prime['plan'].append(e)
+                pi_prime['plan'] += extra_edges
+                pi_prime['visited'].append(new_nodes)
+                #if e[0] not in (pi_prime['visited'] + pi_prime['frontier']):
+                #    pi_prime['frontier'].append(e[0])
+                pi_prime['frontier'] += [n for n in tail if n not in (pi_prime['visited'] + pi_prime['frontier'])]
+
+        PI.append(pi_prime)
+    return PI
+
+
+def exhaustive_optimizer(required_artifacts, history):
+    Q = [{'cost': 0, 'visited': [], 'frontier': required_artifacts, 'plan': []}]
+    plans = []
+    while Q:
+        pi = Q.pop(0)
+        if pi['frontier'] == ['source']:
+            plans.append({'plan': pi['plan'], 'cost': pi['cost']})
+        else:
+            for pi_prime in Expand(history, pi):
+                Q.append(pi_prime)
+    return plans
 
 
 class HistoryGraph:
@@ -88,11 +155,11 @@ class HistoryGraph:
         with open(file_path, 'rb') as file:
             return pickle.load(file)
 
-    def visualize(self, mode='none'):
+    def visualize(self, type='none', mode='none'):
         if mode == "simple":
             graphviz_simple_draw(self.history)
         else:
-            graphviz_draw(self.history, "without_load")
+            graphviz_draw(self.history, type, mode)
 
     def get_dataset_ids(self):
         print(self.dataset_ids)
@@ -114,7 +181,12 @@ class HistoryGraph:
         print(request)
         required_artifacts, extra_cost_1, new_tasks = new_edges(self.history, artifact_graph)
         print(required_artifacts)
-        exhaustive_optimizer(required_artifacts,self.history)
-        return artifact_graph
-
-
+        plans = exhaustive_optimizer(required_artifacts, self.history)
+        subgraph = {}
+        i = 10
+        for plan in plans:
+            subgraph[plan['cost']] = self.history.edge_subgraph(plan['plan'])
+            if i>0:
+                graphviz_draw(self.history.edge_subgraph(plan['plan']), type='pycharm', mode='full')
+                i=i-1
+        return subgraph
