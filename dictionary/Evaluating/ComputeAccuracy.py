@@ -3,7 +3,7 @@ from sklearn.metrics import f1_score, accuracy_score
 
 
 class AccuracyCalculator(BaseEstimator, TransformerMixin):
-    def __init__(self, y_true):
+    def __init__(self, y_true=None):
         self.y_true = y_true
 
     def fit(self, X, y=None):

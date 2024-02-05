@@ -62,9 +62,9 @@ def execute_pipeline_training(artifact_graph, dataset, pipeline, artifacts, X_tr
             cc = cc + step_time
             mem_usage = [0, 0]  # memory_usage(lambda: step_obj.fit(X_temp, y_train))
             artifact_graph.add_node(hs_current + "_fit", type="fitted_operator", size=asizeof.asizeof(fitted_operator),
-                                    cc=cc, frequency=1)
+                                    cc=cc, frequency=1, alias = str(step_obj))
             fitted_operator_name = update_graph(artifact_graph, mem_usage, step_time, "fit", hs_previous, hs_current,
-                                                platforms,step_obj)
+                                                platforms, step_obj)
 
         if hasattr(step_obj, 'transform'):
             mem_usage = [0, 0]  # memory_usage(lambda: step_obj.transform(X_temp))
@@ -79,15 +79,16 @@ def execute_pipeline_training(artifact_graph, dataset, pipeline, artifacts, X_tr
 
             cc = cc + step_time
             # tmp = X_temp.__sizeof__()
-            artifact_graph.add_node(fitted_operator_name + "_super", type="super", size=0, cc=0, frequency=1)
             artifact_graph.add_node(hs_current + "_ftransform", type="train", size=X_temp.size * X_temp.itemsize, cc=cc,
-                                    frequency=1)
+                                    frequency=1, alias =str(step_obj))
+            artifact_graph.add_node(fitted_operator_name + "_super", type="super", size=0, cc=0, frequency=1, alias ="super")
+
             artifact_graph.add_edge(fitted_operator_name, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_super", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             hs_previous = update_graph(artifact_graph, mem_usage, step_time, "ftransform",
-                                       fitted_operator_name + "_super", hs_current, platforms,step_obj)
+                                       fitted_operator_name + "_super", hs_current, platforms, step_obj)
 
     return artifact_graph, artifacts, pipeline, cc
 
@@ -122,15 +123,15 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
             artifacts.append(hs_current + "_tetransform")
 
             artifact_graph.add_node(hs_current + "_tetransform", type="test", size=X_temp.size * X_temp.itemsize,
-                                    cc=cc + step_time, frequency=1)
-            artifact_graph.add_node(fitted_operator_name + "_Tsuper", type="super", size=0, cc=0, frequency=1)
+                                    cc=cc + step_time, frequency=1, alias = str(step_obj))
+            artifact_graph.add_node(fitted_operator_name + "_Tsuper", type="super", size=0, cc=0, frequency=1, alias = "super")
 
             artifact_graph.add_edge(fitted_operator_name, fitted_operator_name + "_Tsuper", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             artifact_graph.add_edge(hs_previous, fitted_operator_name + "_Tsuper", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
             hs_previous = update_graph(artifact_graph, mem_usage, step_time, "tetransform",
-                                       fitted_operator_name + "_Tsuper", hs_current, platforms,step_obj)
+                                       fitted_operator_name + "_Tsuper", hs_current, platforms, step_obj)
 
         if hasattr(step_obj, 'predict'):
             cc = artifact_graph.nodes[fitted_operator_name]['cc']
@@ -143,9 +144,9 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
             artifacts.append(hs_current + "_predict")
 
             artifact_graph.add_node(hs_current + "_predict", type="test", size=predictions.size * predictions.itemsize,
-                                    cc=cc + step_time, frequency=1)
+                                    cc=cc + step_time,alias ="predictions", frequency=1)
 
-            artifact_graph.add_node(fitted_operator_name + "_Psuper", type="super", size=0, cc=0, frequency=1)
+            artifact_graph.add_node(fitted_operator_name + "_Psuper", type="super", size=0, cc=0, frequency=1, alias="super")
 
             artifact_graph.add_edge(fitted_operator_name, fitted_operator_name + "_Psuper", type="super", weight=0,
                                     execution_time=0, memory_usage=0, platform=platforms)
@@ -154,11 +155,13 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
 
             mem_usage = [0, 0]  # memory_usage(lambda: step_obj.predict(X_temp ))
             hs_previous = update_graph(artifact_graph, mem_usage, step_time, "predict",
-                                       fitted_operator_name + "_Psuper", hs_current, platforms,step_obj)
+                                       fitted_operator_name + "_Psuper", hs_current, platforms, step_obj)
         if hasattr(step_obj, 'score'):
             if str(step_obj).startswith("F1ScoreCalculator") or str(step_obj).startswith("AccuracyCalculator") or str(
                     step_obj).startswith("MPECalculator") or str(step_obj).startswith("MSE") or str(
-                step_obj).startswith("MAE") or str(step_obj).startswith("KS") or str(step_obj).startswith("VIZ"):
+                step_obj).startswith("MAE") or str(step_obj).startswith("KS") or str(step_obj).startswith("VIZ") or str(
+                step_obj).startswith("ComputeAUC"):
+
                 step_start_time = time.time()
                 y_temp = y_temp[:len(predictions)]
                 fitted_operator = step_obj.fit(y_temp)
@@ -171,12 +174,15 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
 
                 step_end_time = time.time()
                 step_time = step_end_time - step_start_time
-
-                artifact_graph.add_node(hs_current + "_score", type="score",
-                                        size=X_temp.size * X_temp.itemsize, cc=cc, frequency=1)
+                operator_string = str(step_obj)
+                pos = operator_string.find('(')
+                if pos != -1:
+                    output_string = operator_string[:pos]
+                artifact_graph.add_node(hs_current + "_score", type="score", value=X_temp, operator=output_string,
+                                        size=X_temp.size * X_temp.itemsize, cc=cc, frequency=1, alias = str(output_string))
 
                 hs_previous = update_graph(artifact_graph, mem_usage, step_time, "score", hs_previous, hs_current,
-                                           platforms,step_obj)
+                                           platforms, step_obj)
 
     return artifact_graph, artifacts, hs_previous
 
@@ -185,7 +191,8 @@ def pipeline_training(artifact_graph, dataset, pipeline):
     cc = 0
     step_time = 0
     hs_previous = dataset + "_trainX__"
-    artifact_graph.add_node(dataset + "_trainX__", type="training", size=0, cc=cc, frequency=1, alias=dataset + "_train")
+    artifact_graph.add_node(dataset + "_trainX__", type="training", size=0, cc=cc, frequency=1,
+                            alias=dataset + "_train")
     artifact_graph.add_node(dataset + "_testX__", type="test", size=0, cc=cc, frequency=1, alias=dataset + "_test")
 
     step_full_name = hs_previous
@@ -308,5 +315,3 @@ def store_artifact(hs_current, artifact, directory=None):
     file_path = os.path.join(directory, f"{hs_current}.pkl")
     with open(file_path, 'wb') as f:
         pickle.dump(artifact, f)
-
-

@@ -16,6 +16,21 @@ from matplotlib import pyplot as plt
 
 from components.augmenter import map_node
 
+
+import os
+
+def view_dictionary():
+    startpath = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary"
+    for root, dirs, files in os.walk(startpath):
+        level = root.replace(startpath, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        print('->{}{}'.format(indent, os.path.basename(root)))
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            if ".py" in f and ".pyc" not in f:
+                print('{}${}'.format(subindent, f))
+
+
 def load_artifact_graph(artifact_graph, sum, uid, objective, dataset, graph_dir="graphs", mode="eq_"):
     os.makedirs(graph_dir, exist_ok=True)
     file_name = uid + "_AG_" + str(sum) + "_" + mode + objective + "_" + dataset
@@ -340,6 +355,8 @@ def graphviz_draw_with_requests(G, mode, requested_nodes):
 
     # plt.savefig("output.pdf", format="pdf")
     # plt.show()
+
+
 def graphviz_simple_draw(G):
     # Compute and set depth for each node
     blue_nodes = []
@@ -388,13 +405,22 @@ def graphviz_simple_draw(G):
     png = A.draw(format='png')
     display(Image(png))
     # Open the saved image file with the default viewer
-    #if os.name == 'posix':
+    # if os.name == 'posix':
     #    os.system(f'open {file_path}')
-    #elif os.name == 'nt':  # For Windows
+    # elif os.name == 'nt':  # For Windows
     #    os.startfile(file_path)
 
-def graphviz_draw(G, type='notebook', mode='simple'):
 
+def graphviz_draw(G1, type='notebook', mode='simple', filter='none'):
+    G = G1.copy()
+
+    nodes_to_remove = [node for node, attrs in G.nodes(data=True) if
+                       attrs.get('alias') == 'trainY' or attrs.get('alias') == 'testY']
+
+    G.remove_nodes_from(nodes_to_remove)
+
+    if filter == 'without_load':
+        G.remove_node('source')
     # Compute and set depth for each node
     blue_nodes = []
     for node_id in G.nodes:
@@ -408,10 +434,10 @@ def graphviz_draw(G, type='notebook', mode='simple'):
         elif G.nodes[node_id]['type'] == 'super' or G.nodes[node_id]['type'] == 'split':
             # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
             # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
-            G.nodes[node_id]['color'] = 'blue'
+            G.nodes[node_id]['color'] = 'black'
             G.nodes[node_id]['edgecolors'] = 'blue'
             G.nodes[node_id]['shape'] = 'point'
-            G.nodes[node_id]['width'] = 0.1
+            G.nodes[node_id]['width'] = 0.03
             blue_nodes.append(node_id)
 
         elif G.nodes[node_id]['type'] == 'fitted_operator':
@@ -424,27 +450,37 @@ def graphviz_draw(G, type='notebook', mode='simple'):
         else:
             # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
             # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
-            G.nodes[node_id]['color'] = 'purple'
+            G.nodes[node_id]['color'] = 'blue'
             G.nodes[node_id]['size'] = 100
             G.nodes[node_id]['shape'] = 'rectangle'
-    if mode != 'full':
+    if mode == 'full':
         labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    elif mode == 'use_alias':
+        labels = {node: "" if node in blue_nodes else ( "[" + G.nodes[node]['alias'] + "]" + "[" + G.nodes[node]['type'] + "]") for node in G.nodes()}
     else:
-        labels = {node: "" if node in blue_nodes else (str(node) +"["+ G.nodes[node]['type'] + "]") for node in G.nodes()}
+        labels = {node: "" if node in blue_nodes else (str(node)) for node in
+                  G.nodes()}
+        #labels = {node: "" if node in blue_nodes else (str(node) + "[" + G.nodes[node]['type'] + "]") for node in
+        #          G.nodes()}
     for node, label in labels.items():
         G.nodes[node]['label'] = label
     A = nx.nx_agraph.to_agraph(G)
-    A.graph_attr['rankdir'] = 'LR'
+    A.graph_attr['rankdir'] = 'TD'
     for edge in A.edges():
-        if mode != 'full':
-            edge.attr['label'] = int(G[edge[0]][edge[1]]['weight'] * 1000)
-        else:
-            edge.attr['label'] = str(int(G[edge[0]][edge[1]]['weight'] * 1000)) +"["+ G[edge[0]][edge[1]]['type'] + "]"
+        if G[edge[0]][edge[1]]['type'] == 'super' or G[edge[0]][edge[1]]['type'] == 'split':
+            edge.attr['arrowhead'] = 'none'
+        if G[edge[0]][edge[1]]['type'] != 'super' and G[edge[0]][edge[1]]['type'] != 'split':
+            cost = int(G[edge[0]][edge[1]]['weight'] * 10000)
+            if cost ==0:
+                edge.attr['label'] = str("[" + G[edge[0]][edge[1]][
+                    'type'] + "]")
+            else:
+                edge.attr['label'] = str(int(G[edge[0]][edge[1]]['weight'] * 10000)) + "[" + G[edge[0]][edge[1]]['type'] + "]"
         edge.attr['style'] = "bold"
     # Save the graph to a file
     A.layout(prog='dot')
 
-    if(type!='notebook'):
+    if (type != 'notebook'):
         file_path = 'graph.png'
         A.draw(file_path)
         webbrowser.open('file://' + os.path.realpath(file_path))
@@ -452,11 +488,17 @@ def graphviz_draw(G, type='notebook', mode='simple'):
     else:
         png = A.draw(format='png')
         display(Image(png))
-    # Open the saved image file with the default viewer
-    #if os.name == 'posix':
-    #    os.system(f'open {file_path}')
-    #elif os.name == 'nt':  # For Windows
-    #    os.startfile(file_path)
+
+
+def extract_text_after_first_underscore(input_string):
+    # Split the string at the first underscore
+    parts = input_string.split('_', 1)
+
+    # Check if there's at least one underscore
+    if len(parts) > 1:
+        return parts[1]  # Return the text after the first underscore
+    else:
+        return ""  # Return an empty string if there's no underscore
 
 
 def compute_depth(graph, node, parent=None):
@@ -486,15 +528,18 @@ def find_disconnected_nodes_edges(G, targets):
     disconnected_edges = set(G.edges()) - connected_edges
     return disconnected_nodes, disconnected_edges
 
+
 def keep_two_digits(number):
     str_number = str(number)
     index_of_decimal = str_number.index('.')
     str_number_no_round = str_number[:index_of_decimal + 2]
     return str_number_no_round
 
+
 def compute_correlation(data1, data2):
     corr_matrix = np.corrcoef(data1, data2, rowvar=False)
     return np.average(np.abs(np.diag(corr_matrix, k=1)))
+
 
 def compare_pickles_exact(artifact_dir='artifacts'):
     files = [f for f in os.listdir(artifact_dir) if f.endswith('.pkl')]
@@ -518,6 +563,7 @@ def compare_pickles_exact(artifact_dir='artifacts'):
                 equal_pairs.append((files[i], files[j]))
 
     return equal_pairs
+
 
 def compare_pickles(artifact_dir='artifacts', correlation_threshold=0.9):
     files = [f for f in os.listdir(artifact_dir) if f.endswith('.pkl')]
@@ -543,6 +589,7 @@ def compare_pickles(artifact_dir='artifacts', correlation_threshold=0.9):
 
     return highly_correlated_pairs
 
+
 def print_metrics(metrics_dir='metrics'):
     n_artifacts = 0;
     os.makedirs(metrics_dir, exist_ok=True)
@@ -559,10 +606,12 @@ def print_metrics(metrics_dir='metrics'):
         print("Step '{}' execution time: {}".format(step_name, step_time))
     print("number of artifacts " + str(n_artifacts))
 
+
 def plot_artifact_graph(G):
     pos = nx.drawing.layout.spring_layout(G, seed=42)
     nx.draw(G, pos, with_labels=True, node_size=3000, node_color="skyblue", font_size=10)
     plt.show()
+
 
 def get_steps(steps):
     mandatory_steps = []
@@ -584,6 +633,8 @@ def get_all_steps(steps):
         else:
             mandatory_steps.append((step_name, options))
     return optional_steps, mandatory_steps
+
+
 def get_first_lines(filename, n=10):
     """
     Extract the first n lines of a file.
@@ -630,8 +681,6 @@ def create_artifact_graph(artifacts):
     return G
 
 
-
-
 def compute_loading_times(metrics_dir='metrics', artifacts_dir='artifacts'):
     os.makedirs(metrics_dir, exist_ok=True)
     loading_times = {}
@@ -667,10 +716,10 @@ def compute_loading_times(metrics_dir='metrics', artifacts_dir='artifacts'):
     return loading_times
 
 
-
 def update_graph(artifact_graph, mem_usage, step_time, param, hs_previous, hs_current, platforms, objective):
     artifact_graph.add_edge(hs_previous, hs_current + "_" + param, type=param, weight=step_time,
-                            execution_time=step_time, memory_usage=max(mem_usage), platform=platforms, function=objective)
+                            execution_time=step_time, memory_usage=max(mem_usage), platform=platforms,
+                            function=objective)
     return hs_current + "_" + param
 
 
@@ -711,7 +760,131 @@ def create_4_digit_signature(input_string):
     return f"{short_hash:04}"  # Return the number as a zero-padded string
 
 
-def execute_graph(dataset_id, artifact_graph):
+# [plan['cost'],self.history.edge_subgraph(plan['plan']), required_artifacts]
+def execute_tasks(tasks_to_execute, memory_artifacts, A, dataset_id):
+    # print('memory')
+    executed_tasks = []
+    # print(list(memory_artifacts.keys()))
+    # print('tasks')
+    # print(tasks_to_execute)
+    trainy = retrieve_artifact(dataset_id + "_trainy__")
+    testy = retrieve_artifact(dataset_id + "_testy__")
+    #tasks = list(reversed(tasks_to_execute))
+    for task in tasks_to_execute:
+        data = A.get_edge_data(*task)
+        operator = data.get('function', 'No function attribute')
+        function = data.get('type', 'No function attribute')
+        # print(operator)
+        # print(function)
+        executed_tasks.append([operator, function])
+        node = task[0]
+        neighbor = task[1]
+        ## FIT
+        if function == 'fit':
+            args = inspect.signature(operator.fit).parameters
+            train_data = memory_artifacts[node]
+            requires_y = 'y' in args
+            if requires_y:
+                fit_result = operator.fit(train_data, trainy)
+            else:
+                fit_result = operator.fit(train_data)
+            memory_artifacts[neighbor] = fit_result
+
+        ## TRANSFORM
+        elif 'transform' in function:
+            tail = list(A.predecessors(task[0]))
+            for item in tail:
+                if 'fit' in item:
+                    operator = memory_artifacts.get(item)
+                else:
+                    data_to_transform = memory_artifacts.get(item)
+            #print(operator)
+            #print(data_to_transform)
+            fit_result = operator.transform(data_to_transform)
+            memory_artifacts[neighbor] = fit_result
+
+        ## PREDICT
+        elif 'predict' in function:
+            tail = list(A.predecessors(task[0]))
+            for item in tail:
+                if 'fit' in item:
+                    operator = memory_artifacts.get(item)
+                else:
+                    test_data = memory_artifacts.get(item)
+            predictions = operator.predict(test_data)
+            memory_artifacts[neighbor] = predictions
+        ## SCORE
+        elif 'score' in function:
+            fitted_operator = operator.fit(testy)
+            predictions = memory_artifacts[node]
+            X_temp = fitted_operator.score(predictions)
+            memory_artifacts[neighbor] = X_temp
+    return memory_artifacts, executed_tasks
+
+
+def execute_graph(dataset_id, plan):
+    A = plan[1].copy()
+    required_artifacts = plan[2]
+
+    topo_sort = list(nx.topological_sort(A))
+    node_order = {node: i for i, node in enumerate(topo_sort)}
+
+    ### EXECUTING A GRAPH
+    pipeline_description = None
+    load_tasks = []
+    tasks_to_execute = []
+    memory_artifacts = {}
+    trainy = None
+    testy = None
+
+    memory_artifacts[dataset_id + "_trainy__"] = trainy
+    memory_artifacts[dataset_id + "_testy__"] = testy
+    # load artifacts and add them to memory
+    for load_artifacts in A.out_edges('source'):
+        memory_artifacts[load_artifacts[1]] = retrieve_artifact(load_artifacts[1])
+        load_tasks.append(load_artifacts[1])
+    A.remove_node('source')
+    queue = []
+    visited = []
+
+    for key in memory_artifacts.keys():
+        visited.append(key)
+
+    queue += required_artifacts
+    Tasks = []
+    while queue:
+        node = queue.pop(0)
+        if node not in visited:
+            visited.append(node)
+            tasks = list(A.in_edges(node))
+            task = tasks[0]
+            extra_edges = []
+            if 'super' in task[0] or 'split' in task[0]:
+                head = list(A.successors(task[0]))
+                tail = list(A.predecessors(task[0]))
+                extra_edges += list(A.in_edges(task[0]))
+                extra_edges += list(A.out_edges(task[0]))
+            else:
+                head = [task[1]]
+                tail = [task[0]]
+            data = A.get_edge_data(*task)
+            operator = data.get('function', 'No function attribute')
+            function = data.get('type', 'No function attribute')
+            tasks_to_execute.append(task)
+            for neighbor in tail:
+                if neighbor not in visited:
+                    queue.append(neighbor)
+
+
+    sorted_tasks = sorted(tasks_to_execute, key=lambda edge: node_order[edge[0]])
+
+    all_artifacts, executed_tasks = execute_tasks(sorted_tasks, memory_artifacts, A, dataset_id)
+    request = all_artifacts[required_artifacts[0]]
+    executed_tasks = [["F1ScoreCalculator.score"]]
+    return executed_tasks, load_tasks, request
+
+
+def execute_graph_old(dataset_id, artifact_graph):
     ### EXECUTING A GRAPH
     pipeline_description = None
     memory_artifacts = {}
@@ -726,7 +899,7 @@ def execute_graph(dataset_id, artifact_graph):
 
     if nx.is_directed_acyclic_graph(artifact_graph):
         # Print edges in topological order
-        #print("\nEdges in topological order:")
+        # print("\nEdges in topological order:")
         for node in nx.topological_sort(artifact_graph):
             if artifact_graph.in_degree(node) == 0:
                 memory_artifacts[node] = retrieve_artifact(node)
@@ -737,7 +910,7 @@ def execute_graph(dataset_id, artifact_graph):
                     if train_data == None:
                         train_data = memory_artifacts.get(node)
             for _, neighbor, data in artifact_graph.edges(node, data=True):
-                #print(f"({node}, {neighbor})")
+                # print(f"({node}, {neighbor})")
                 operator = data.get('function', 'No function attribute')
                 function = data.get('type', 'No function attribute')
                 ## FIT
@@ -777,10 +950,11 @@ def execute_graph(dataset_id, artifact_graph):
                     fitted_operator = operator.fit(testy)
                     predictions = memory_artifacts[node]
                     X_temp = fitted_operator.score(predictions)
-                #print(operator)
-                #print(function)
+                # print(operator)
+                # print(function)
     else:
         print("Graph is not a DAG. Cannot perform topological sort.")
+
 
 def retrieve_artifact(hs_current, directory=None):
     if directory is None:

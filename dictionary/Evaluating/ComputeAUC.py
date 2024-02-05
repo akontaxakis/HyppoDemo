@@ -1,5 +1,5 @@
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.metrics import f1_score, accuracy_score, roc_auc_score
+from sklearn.metrics import roc_auc_score
 
 
 class ComputeAUC(BaseEstimator, TransformerMixin):
@@ -8,7 +8,7 @@ class ComputeAUC(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y=None):
         # Assuming y contains the true labels during fit
-        self.y_true = y
+        self.y_true = X
         return self
 
     def score(self, X):

@@ -253,7 +253,9 @@ def merge_nodes_3(G: object, node1: object, node2: object) -> object:
         list1 = G[node1].get(neighbor, {}).get('platform', [])
         list2 = G[node2].get(neighbor, {}).get('platform', [])
         combined = list(set(list1 + list2))
-        edge_type = G[node1].get(neighbor, {}).get('type', 'super')
+        edge_type = G[node1].get(neighbor, {}).get('type', 'n')
+        if edge_type =='n':
+            edge_type = G[node2].get(neighbor, {}).get('type', 'n')
         if G.has_edge(node1, neighbor):
             # Update edge if it already exists
             G[node1][neighbor]['weight'] = weight
@@ -277,7 +279,10 @@ def merge_nodes_3(G: object, node1: object, node2: object) -> object:
         list1 = G[neighbor].get(node1, {}).get('platform', [])
         list2 = G[neighbor].get(node2, {}).get('platform', [])
         combined = list(set(list1 + list2))
-        edge_type = G[neighbor].get(node1, {}).get('type', 'super')
+        edge_type = G[neighbor].get(node1, {}).get('type', 'n')
+        if edge_type == 'n':
+            edge_type = G[neighbor].get(node2, {}).get('type', 'n')
+
         if G.has_edge(neighbor, node1):
             # Update edge if it already exists
             G[neighbor][node1]['weight'] = weight

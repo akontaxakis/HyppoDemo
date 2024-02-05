@@ -21,6 +21,8 @@ def sample(X_train, y_train, rate):
     sample_y_train = y_train[sample_indices]
     return sample_X_train, sample_y_train
 
+def pipeline_to_graph(dataset_id, pipeline):
+    pass
 
 def init_graph(dataset, split_ratio, dataset_multiplier=1):
     # Load the Breast Cancer Wisconsin dataset
@@ -79,7 +81,7 @@ def add_dataset(G, dataset, dataset_multiplier=0.1):
         y = np.random.rand(100000)
         y = (y > 0.5).astype(int)
     elif dataset == "HIGGS":
-        data = np.loadtxt('C:/Users/adoko/Downloads/HIGGS.csv', delimiter=',', max_rows=1000)
+        data = np.loadtxt('C:/Users/adoko/Downloads/HIGGS.csv', delimiter=',', max_rows=100000)
         # Extract and modify the first column based on your condition
         # (e.g., setting it to 0 or 1 if it's greater than 0.5)
         y = np.where(data[:, 0] > 0.5, 1, 0).astype(float)
@@ -103,7 +105,7 @@ def add_dataset(G, dataset, dataset_multiplier=0.1):
 
     end_time = time.time()
     cc = end_time - start_time
-    G.add_node(dataset, type="raw", size=X.size * X.itemsize, cc=cc, frequency=1)
+    G.add_node(dataset, type="raw", size=X.size * X.itemsize, cc=cc, frequency=1,alias=dataset)
     platforms = ["python"]
     G.add_edge("source", dataset, type="load", weight=end_time - start_time + 0.000001,
                execution_time=end_time - start_time,
@@ -128,10 +130,8 @@ def get_dataset(dataset):
 
         # Store the original first column in a separate array
         y = data[:, 0].copy()
-
         # Drop the first column from the data
         X = data[:, 1:]
-        print(data.shape)
     elif dataset == "TAXI":
         data = pd.read_csv('C:/Users/adoko/PycharmProjects/pythonProject1/datasets/taxi_train.csv')
         data['trip_duration'] = data['trip_duration'].replace(-1, 0)
@@ -161,11 +161,11 @@ def split_data(artifact_graph, dataset, split_ratio, X, y, cc):
     step_time = end_time - start_time
     cc = cc + step_time
 
-    artifact_graph.add_node(dataset + "_trainX__", type="training", size=X_train.__sizeof__(), cc=cc, frequency=1)
-    artifact_graph.add_node(dataset + "_testX__", type="test", size=X_test.__sizeof__(), cc=cc, frequency=1)
-    artifact_graph.add_node(dataset + "_trainy__", type="training", size=y_train.__sizeof__(), cc=cc, frequency=1)
-    artifact_graph.add_node(dataset + "_testy__", type="test", size=y_test.__sizeof__(), cc=cc, frequency=1)
-    artifact_graph.add_node(dataset + "_split", type="split", size=0, cc=0, frequency=1)
+    artifact_graph.add_node(dataset + "_trainX__", type="training", size=X_train.__sizeof__(), cc=cc, frequency=1, alias = "trainX")
+    artifact_graph.add_node(dataset + "_testX__", type="testing", size=X_test.__sizeof__(), cc=cc, frequency=1, alias = "testX")
+    artifact_graph.add_node(dataset + "_trainy__", type="training", size=y_train.__sizeof__(), cc=cc, frequency=1, alias = "trainY")
+    artifact_graph.add_node(dataset + "_testy__", type="testing", size=y_test.__sizeof__(), cc=cc, frequency=1,  alias = "testY")
+    artifact_graph.add_node(dataset + "_split", type="split", size=0, cc=0, frequency=1, alias = "split")
 
     artifact_graph.add_edge(dataset, dataset + "_split", type="split", weight=step_time, execution_time=step_time,
                             memory_usage=max(mem_usage), platform=platforms)
@@ -216,7 +216,7 @@ def extract_artifact_graph(dataset, pipeline):
     new_pipeline = clone(pipeline)
     artifact_graph = pipeline_training(artifact_graph, dataset, new_pipeline)
     artifact_graph, request = pipeline_evaluation(artifact_graph, dataset, new_pipeline)
-    return artifact_graph
+    return artifact_graph, request
 
 
 def graph_to_pipeline(artifact_graph):

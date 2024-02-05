@@ -43,7 +43,7 @@ def rank_based_materializer_frequency(artifacts, Budget):
 def add_load_tasks_to_the_graph(shared_artifact_graph, materialized_artifacts):
     platforms = []
     #TODO change that
-    loading_speed = 566255240
+    loading_speed = 566255
 
     platforms.append("python")
     limited_shared_graph = shared_artifact_graph.copy()
