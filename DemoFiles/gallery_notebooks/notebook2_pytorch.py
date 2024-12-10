@@ -18,7 +18,7 @@ if __name__ == '__main__':
     trainPDF = pd.read_parquet(path= PATH + 'trainUndersampled.snappy.parquet',
                                columns=['HLF_input', 'encoded_label'])
 
-    ##Preprocessing train
+    ##Preprocessor train
 
     trainPDF['HLF_input'] = trainPDF['HLF_input'].apply(string_to_list)
     trainPDF['encoded_label'] = trainPDF['encoded_label'].apply(string_to_list)
@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     trainPDF = trainPDF[['HLF_input', 'encoded_label']]
 
-    ##Preprocessing test
+    ##Preprocessor test
     testPDF['HLF_input'] = testPDF['HLF_input'].apply(string_to_list)
     testPDF['encoded_label'] = testPDF['encoded_label'].apply(string_to_list)
 

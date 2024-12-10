@@ -1,15 +1,18 @@
 import copy
+import glob
+import json
 import os
 import pickle
 
 import networkx as nx
+import numpy as np
+import pandas as pd
 
 from components.augmenter import new_edges, create_equivalent_graph_without_fit
 from components.history_manager import update_and_merge_graphs, add_load_tasks_to_the_graph
-from components.lib import pretty_graph_drawing, graphviz_draw, graphviz_simple_draw
+from components.lib import pretty_graph_drawing, graphviz_draw, graphviz_simple_draw, view_dictionary
 from components.parser.parser import add_dataset, split_data, execute_pipeline, extract_artifact_graph
 from components.parser.sub_parser import pipeline_training, pipeline_evaluation
-
 
 def CartesianProduct(sets):
     if len(sets) == 0:
@@ -106,7 +109,10 @@ class HistoryGraph:
     def __init__(self, history_id, directory=None):
         self.history_id = history_id
         if directory is None:
-            directory = 'saved_graphs'
+            #directory = 'saved_graphs'
+            #directory = r'C:\Users\adoko\PycharmProjects\autoPipe\autoML\saved_graphs'
+            directory = r'C:\Users\adoko\PycharmProjects\HyppoDemo\saved_graphs'
+
         file_path = os.path.join(directory, f"{self.history_id}.pkl")
         if os.path.exists(file_path):
             # Load the graph if it exists
@@ -121,6 +127,38 @@ class HistoryGraph:
             self.history.add_node("source", type="source", size=0, cc=0, alias="storage")
             self.dataset_ids = {}
             self.save_to_file()
+
+    def save_graph_graphml(self):
+        for node, data in self.history.nodes(data=True):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    # Convert list to a JSON-formatted string
+                    self.history.nodes[node][key] = json.dumps(value)
+
+        # Iterate over all edges in the graph to check and modify the attributes
+        for u, v, data in self.history.edges(data=True):
+            # Iterate over each attribute in the edge's data dictionary
+            for attr_key, attr_value in list(data.items()):
+                # Check if the attribute value is of a type that needs to be serialized (e.g., list or dict)
+                if attr_key =="function":
+                    # Convert the type object to its fully qualified name as a string
+                    data[attr_key] = f"k"
+                if isinstance(attr_value, (list, dict)):
+                    # Convert the value to a JSON string and update the attribute
+                    print(data[attr_key])
+                    data[attr_key] = json.dumps(attr_value)
+                    print(data[attr_key])
+
+
+        nx.write_graphml(self.history, 'history.graphml')
+
+    def view_datasets(self):
+        data = [(key, value) for key, value in self.dataset_ids.items()]
+
+        # Create a DataFrame from the list of tuples
+        df = pd.DataFrame(data, columns=['dataset_id', 'split_ratio'])
+        # Create a DataFrame
+        return df
 
     def add_dataset(self, dataset):
         """
@@ -205,7 +243,7 @@ class HistoryGraph:
             if mode == "simple":
                 graphviz_simple_draw(G)
             else:
-                graphviz_draw(G, type, mode, load_edges)
+                graphviz_draw(G, type, mode, load_edges, self.history_id)
 
     def get_dataset_ids(self):
         print(self.dataset_ids)
@@ -218,7 +256,7 @@ class HistoryGraph:
         self.history = update_and_merge_graphs(copy.deepcopy(self.history), execution_graph)
         self.history = add_load_tasks_to_the_graph(self.history, artifacts)
         self.save_to_file()
-        return request
+        return request, pipeline
 
     def generate_plans(self, dataset, pipeline, mode='None'):
         artifact_graph = nx.DiGraph()
@@ -257,7 +295,7 @@ class HistoryGraph:
             if self.history.has_edge('source', artifact):
                 self.history.remove_edge('source', artifact)
 
-    def get_augmented_graph(self, dataset_id, filter_artifact_id, filter="None"):
+    def get_augmented_graph(self, dataset_id, filter_artifact_id="None", filter="None"):
         if "eq" in filter:
             G = self.eq_history.copy()
         else:
@@ -388,6 +426,29 @@ class HistoryGraph:
     def find_equivalent_operators(self):
         self.eq_history = create_equivalent_graph_without_fit(self.history)
 
+    def sort_by_metrics(self, dataset_id, metric):
+        G = self.history.copy()
+        value_set = set()
+        if dataset_id in G:
+            target_node = dataset_id
+            # Get all predecessors and successors of the target node
+            predecessors = set(nx.ancestors(G, target_node))
+            successors = set(nx.descendants(G, target_node))
+            # Create a set that includes the target node, its predecessors, and its successors
+            relevant_nodes = predecessors.union(successors).union({target_node})
+
+            # Create a subgraph with these nodes
+            G = G.subgraph(relevant_nodes).copy()
+            # Iterate through the nodes to process those with type 'score'
+            for node, attr in G.nodes(data=True):
+                if attr.get('type') == 'score':
+                    for node, attr in G.nodes(data=True):
+                        if attr.get('type') == 'score' and attr.get('operator') == metric :
+                            operator = attr.get('operator')
+                            value = attr.get('value', 0)  # Default value is 0 if not present
+                            # Update the highest and lowest value for each operator
+                            value_set.add(value)
+        return sorted(list(value_set), reverse=True)
     def best_metrics_achieved(self, dataset_id):
         G = self.history.copy()
         if dataset_id in G:
@@ -421,6 +482,82 @@ class HistoryGraph:
                            zip(highest_values, highest_values.values(), lowest_values.values())],
                           columns=['operator', 'highest_value', 'lowest_value'])
         return df
+    def popular_unused_operators(self, dataset_id, objective):
+
+        dictionary = view_dictionary(objective=objective)
+        popular_operators = self.popular_operators(dataset_id)
+
+        num_rows = dictionary.shape[0]
+
+        # Generate random integer values for each row
+        # For example, random integers between 1 and 100
+        dictionary['Frequency'] = np.random.randint(10, 101, size=num_rows)
+
+
+        # For df2, remove details within parentheses to match 'Implementation' format
+        popular_operators['NormalizedOperator'] = popular_operators['Operator'].str.extract(r'([^\(]+)')
+
+        # Now, filter df1 by implementations that do not exist in the normalized 'Operator' of df2
+        # We're using ~df1['Implementation'].isin(df2['NormalizedOperator']) to find non-matching rows
+        df3 = dictionary[~dictionary['Implementation'].isin(popular_operators['NormalizedOperator'])][['Implementation', 'Frequency']]
+        return df3
+    def retrieve_best_pipelines(self, dataset_id, metric, N):
+        A = self.history.copy()
+        df = pd.DataFrame(columns=[metric, "Pipeline"])  # Main DataFrame
+
+        highest_values = self.sort_by_metrics(dataset_id, metric)
+
+
+        edges_to_remove = [(u, v) for u, v in A.out_edges("source") if A.nodes[v].get('type') not in ['training', 'testing']]
+        A.remove_edges_from(edges_to_remove)
+        for i in range(min(N, len(highest_values))):  # Ensure loop does not exceed available highest values
+            G = A.copy()
+            specific_value = highest_values[i]  # No need to check for None, loop controls it
+
+            request = None
+            for node, attr in G.nodes(data=True):
+                if attr.get('operator') == metric and attr.get('value') == specific_value:
+                    request = node
+                    break
+
+            if request is None:
+                print(f"No node found with operator '{metric}' and value '{specific_value}'")
+                continue
+
+            G.remove_node(dataset_id)
+            G.remove_node(dataset_id + "_split")
+
+            # Assuming exhaustive_optimizer and its output handling are correct
+            plans = exhaustive_optimizer([request], G)
+            if not plans:
+                continue
+            plan = plans.pop(0)
+            graph = self.history.edge_subgraph(plan['plan'])
+
+            # Extract the pipeline process based on your specific logic
+            topological_sorted_nodes = list(nx.topological_sort(graph))
+            filtered_sorted_aliases = [graph.nodes[node]['alias'] for node in topological_sorted_nodes
+                                       if 'type' in graph.nodes[node] and graph.nodes[node]['type'] != "super"
+                                       and 'alias' in graph.nodes[node]
+                                       and graph.nodes[node]['alias'] not in {"predictions", "trainX", "storage",
+                                                                              "testX"}]
+
+            unique_array = []
+            for item in filtered_sorted_aliases:
+                if item not in unique_array:
+                    unique_array.append(item)
+
+            # Create a new DataFrame for the current data point
+            new_data = {metric: [specific_value], "Pipeline": [unique_array]}
+            new_df = pd.DataFrame(new_data)
+
+            # Concatenate the new_df to the main df
+            df = pd.concat([df, new_df], ignore_index=True)
+
+        return df
+
+
+
 
     def retrieve_best_pipeline(self, dataset_id, metric, mode='review'):
         G = self.history.copy()
@@ -575,7 +712,6 @@ class HistoryGraph:
         # Step 1: Extract Node Frequencies
         node_frequencies = {node: G.nodes[node]['frequency'] for node in G.nodes if node != "source"}
         node_alias = {node: G.nodes[node]['alias'] for node in G.nodes if node != "source"}
-
         # Step 2: Calculate Operator Frequencies
         operator_frequency = {}
         for edge in G.edges:
@@ -590,10 +726,7 @@ class HistoryGraph:
             # Assuming the edge is directed and you want the frequency of the node the edge points to
             if operator == "predictions":
                 continue
-            if "Calculator" in operator:
-                continue
             frequency = node_frequencies[target_node]
-
             if operator in operator_frequency:
                 operator_frequency[operator] += frequency
             else:
@@ -602,9 +735,57 @@ class HistoryGraph:
         # Step 3: Rank Operators
         # Sort the operators based on the summed frequency
         operators_ranked = sorted(operator_frequency.items(), key=lambda x: x[1], reverse=True)
-        return operators_ranked
+        df_operators_ranked = pd.DataFrame(operators_ranked, columns=['Operator', 'Frequency'])
+        df_filtered = df_operators_ranked[
+            ~(df_operators_ranked['Operator'].isin(['trainX', 'testX', 'split', 'trainY', 'testY']))
+        ]
+        return df_filtered
 
     def optimize_pipeline(self, dataset_id, pipeline):
-     graph, request = extract_artifact_graph(dataset_id,pipeline)
-     plans=self.optimal_retrieval_plan(dataset_id, [request])
-     return plans.pop(0)
+         graph, request = extract_artifact_graph(dataset_id,pipeline)
+         plans=self.optimal_retrieval_plan(dataset_id, [request])
+         return plans.pop(0)
+
+
+    def list_py_files(self, directory):
+        paths = []
+        for root, dirs, files in os.walk(directory):
+            for file in glob.glob(os.path.join(root, '*.py')):
+                paths.append(file)
+        return paths
+
+    def view_dictionary(self, type=None, objective=None):
+
+        directory_path = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary"
+        paths = self.list_py_files(directory_path)
+
+        # Specify the path to your directory
+
+        df = pd.DataFrame(columns=["Type", "Objective", "Implementation"])
+
+        # Prefix to remove from each path
+        prefix = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary\\"
+
+        # Processing the paths
+        data = []
+        for path in paths:
+            # Remove the prefix
+            trimmed_path = path.replace(prefix, "")
+            # Split the path to extract the required components
+            components = trimmed_path.split("\\")
+            if len(components) >= 3:
+                Type, Objective, Implementation = components[0], components[1], components[-1]
+                # Remove the file extension from Implementation
+                Implementation = Implementation.split('.')[0]
+                data.append([Type, Objective, Implementation])
+
+        # Create a DataFrame
+        df = pd.DataFrame(data, columns=['Type', 'Objective', 'Implementation'])
+
+        if type is not None:
+            # Apply the age filter
+            df = df[df['Type'] == type]
+        if objective is not None:
+            # Apply the age filter
+            df = df[df['Objective'] == objective]
+        return df

@@ -3,7 +3,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from sklearn import clone
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_breast_cancer, load_iris, load_wine, load_linnerud, load_digits, load_diabetes
 from sklearn.model_selection import train_test_split
 
 from components.parser.sub_parser import execute_pipeline_training, execute_pipeline_evaluation, pipeline_training, \
@@ -47,8 +47,6 @@ def init_graph(dataset, split_ratio, dataset_multiplier=1):
 
         # Drop the first column from the data
         X = data[:, 1:]
-        print(data.shape)
-        print(data.shape)
     elif dataset == "TAXI":
         data = pd.read_csv('C:/Users/adoko/PycharmProjects/pythonProject1/datasets/taxi_train.csv')
         data['trip_duration'] = data['trip_duration'].replace(-1, 0)
@@ -77,9 +75,36 @@ def add_dataset(G, dataset, dataset_multiplier=0.1):
     if dataset == "breast_cancer":
         data = load_breast_cancer()
         X, y = data.data, data.target
-        X = np.random.rand(100000, 100)
-        y = np.random.rand(100000)
-        y = (y > 0.5).astype(int)
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "iris":
+        data = load_iris()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "diabetes":
+        data = load_diabetes()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "digits":
+        data = load_digits()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+    elif dataset == "linnerud":
+        data = load_linnerud()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+    elif dataset == "wine":
+        data = load_wine()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
     elif dataset == "HIGGS":
         data = np.loadtxt('C:/Users/adoko/Downloads/HIGGS.csv', delimiter=',', max_rows=100000)
         # Extract and modify the first column based on your condition
@@ -87,17 +112,17 @@ def add_dataset(G, dataset, dataset_multiplier=0.1):
         y = np.where(data[:, 0] > 0.5, 1, 0).astype(float)
 
         # Store the original first column in a separate array
-        y = data[:, 0].copy()
+        #y = data[:, 0].copy()
 
         # Drop the first column from the data
         X = data[:, 1:]
-        print(data.shape)
+        #print(data.shape)
     elif dataset == "TAXI":
         data = pd.read_csv('C:/Users/adoko/PycharmProjects/pythonProject1/datasets/taxi_train.csv')
         data['trip_duration'] = data['trip_duration'].replace(-1, 0)
         y = data['trip_duration'].values
         X = data.drop('trip_duration', axis=1).values
-    else:
+    elif dataset == "BBC":
         data = pd.read_csv('C:/Users/adoko/Υπολογιστής/BBC.csv')
         data['target'] = data['target'].replace(-1, 0)
         y = data['target'].values
@@ -119,25 +144,54 @@ def get_dataset(dataset):
     if dataset == "breast_cancer":
         data = load_breast_cancer()
         X, y = data.data, data.target
-        X = np.random.rand(100000, 100)
-        y = np.random.rand(100000)
-        y = (y > 0.5).astype(int)
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "iris":
+        data = load_iris()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "diabetes":
+        data = load_diabetes()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+        #y = (y > 0.5).astype(int)
+    elif dataset == "digits":
+        data = load_digits()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+    elif dataset == "linnerud":
+        data = load_linnerud()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
+    elif dataset == "wine":
+        data = load_wine()
+        X, y = data.data, data.target
+        #X = np.random.rand(100000, 100)
+        #y = np.random.rand(100000)
     elif dataset == "HIGGS":
-        data = np.loadtxt('C:/Users/adoko/Downloads/HIGGS.csv', delimiter=',', max_rows=1000)
+        data = np.loadtxt('C:/Users/adoko/Downloads/HIGGS.csv', delimiter=',', max_rows=10000)
         # Extract and modify the first column based on your condition
         # (e.g., setting it to 0 or 1 if it's greater than 0.5)
         y = np.where(data[:, 0] > 0.5, 1, 0).astype(float)
 
         # Store the original first column in a separate array
-        y = data[:, 0].copy()
+        #y = data[:, 0].copy()
+
         # Drop the first column from the data
         X = data[:, 1:]
+        #print(data.shape)
     elif dataset == "TAXI":
         data = pd.read_csv('C:/Users/adoko/PycharmProjects/pythonProject1/datasets/taxi_train.csv')
         data['trip_duration'] = data['trip_duration'].replace(-1, 0)
         y = data['trip_duration'].values
         X = data.drop('trip_duration', axis=1).values
-    else:
+    elif dataset == "BBC":
         data = pd.read_csv('C:/Users/adoko/Υπολογιστής/BBC.csv')
         data['target'] = data['target'].replace(-1, 0)
         y = data['target'].values

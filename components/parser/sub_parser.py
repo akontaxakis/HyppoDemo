@@ -28,7 +28,7 @@ def execute_pipeline_training(artifact_graph, dataset, pipeline, artifacts, X_tr
         step_full_name = step_full_name + name + "__"
         hs_current = extract_first_two_chars(step_full_name)
         if hasattr(step_obj, 'fit'):
-            if str(step_obj).startswith("F1ScoreCalculator"):
+            if str(step_obj).startswith("F1ScoreCalculator") or str(step_obj).startswith("F2"):
                 continue
             if str(step_obj).startswith("AccuracyCalculator"):
                 continue
@@ -160,7 +160,7 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
             if str(step_obj).startswith("F1ScoreCalculator") or str(step_obj).startswith("AccuracyCalculator") or str(
                     step_obj).startswith("MPECalculator") or str(step_obj).startswith("MSE") or str(
                 step_obj).startswith("MAE") or str(step_obj).startswith("KS") or str(step_obj).startswith("VIZ") or str(
-                step_obj).startswith("ComputeAUC"):
+                step_obj).startswith("ComputeAUC") or str(step_obj).startswith("F2") :
 
                 step_start_time = time.time()
                 y_temp = y_temp[:len(predictions)]
@@ -179,7 +179,7 @@ def execute_pipeline_evaluation(artifact_graph, dataset, pipeline, artifacts, X_
                 if pos != -1:
                     output_string = operator_string[:pos]
                 artifact_graph.add_node(hs_current + "_score", type="score", value=X_temp, operator=output_string,
-                                        size=X_temp.size * X_temp.itemsize, cc=cc, frequency=1, alias = str(output_string))
+                                        size=1, cc=cc, frequency=1, alias = str(output_string))
 
                 hs_previous = update_graph(artifact_graph, mem_usage, step_time, "score", hs_previous, hs_current,
                                            platforms, step_obj)
@@ -220,7 +220,7 @@ def pipeline_training(artifact_graph, dataset, pipeline):
                 continue
             if str(step_obj).startswith("MAECalculator"):
                 continue
-            if str(step_obj).startswith("MPECalculator"):
+            if str(step_obj).startswith("MPECalculator") or str(step_obj).startswith("F2"):
                 continue
             mem_usage = [0, 0]  # memory_usage(lambda: step_obj.fit(X_temp, y_train))
             artifact_graph.add_node(hs_current + "_fit", type="fitted_operator", size=0,
@@ -297,7 +297,7 @@ def pipeline_evaluation(artifact_graph, dataset, pipeline):
         if hasattr(step_obj, 'score'):
             if str(step_obj).startswith("F1ScoreCalculator") or str(step_obj).startswith("AccuracyCalculator") or str(
                     step_obj).startswith("MPECalculator") or str(step_obj).startswith("MSE") or str(
-                step_obj).startswith("MAE") or str(step_obj).startswith("KS") or str(step_obj).startswith("VIZ"):
+                step_obj).startswith("MAE") or str(step_obj).startswith("KS") or str(step_obj).startswith("VIZ") or str(step_obj).startswith("F2"):
                 artifact_graph.add_node(hs_current + "_score", type="score",
                                         size=0, cc=cc, frequency=1, alias=step_name)
 

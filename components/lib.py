@@ -1,4 +1,5 @@
 import inspect
+import json
 import os
 import pickle
 import random
@@ -8,6 +9,7 @@ import time
 import webbrowser
 
 from IPython.display import Image, display
+from pyvis.network import Network
 
 from sklearn.metrics import silhouette_score
 import networkx as nx
@@ -16,19 +18,55 @@ from matplotlib import pyplot as plt
 
 from components.augmenter import map_node
 
+import pandas as pd
+import os
+import glob
 
 import os
 
-def view_dictionary():
-    startpath = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary"
-    for root, dirs, files in os.walk(startpath):
-        level = root.replace(startpath, '').count(os.sep)
-        indent = ' ' * 4 * (level)
-        print('->{}{}'.format(indent, os.path.basename(root)))
-        subindent = ' ' * 4 * (level + 1)
-        for f in files:
-            if ".py" in f and ".pyc" not in f:
-                print('{}${}'.format(subindent, f))
+
+def list_py_files(directory):
+    paths = []
+    for root, dirs, files in os.walk(directory):
+        for file in glob.glob(os.path.join(root, '*.py')):
+            paths.append(file)
+    return paths
+
+def view_dictionary(type=None, objective=None):
+
+    directory_path = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary"
+    paths = list_py_files(directory_path)
+
+    # Specify the path to your directory
+
+    df = pd.DataFrame(columns=["Type", "Objective", "Implementation"])
+
+    # Prefix to remove from each path
+    prefix = "C:/Users/adoko/PycharmProjects/HyppoDemo/dictionary\\"
+
+    # Processing the paths
+    data = []
+    for path in paths:
+        # Remove the prefix
+        trimmed_path = path.replace(prefix, "")
+        # Split the path to extract the required components
+        components = trimmed_path.split("\\")
+        if len(components) >= 3:
+            Type, Objective, Implementation = components[0], components[1], components[-1]
+            # Remove the file extension from Implementation
+            Implementation = Implementation.split('.')[0]
+            data.append([Type, Objective, Implementation])
+
+    # Create a DataFrame
+    df = pd.DataFrame(data, columns=['Type', 'Objective', 'Implementation'])
+
+    if type is not None:
+        # Apply the age filter
+        df = df[df['Type'] == type]
+    if objective is not None:
+        # Apply the age filter
+        df = df[df['Objective'] == objective]
+    return df
 
 
 def load_artifact_graph(artifact_graph, sum, uid, objective, dataset, graph_dir="graphs", mode="eq_"):
@@ -411,7 +449,91 @@ def graphviz_simple_draw(G):
     #    os.startfile(file_path)
 
 
-def graphviz_draw(G1, type='notebook', mode='simple', filter='none'):
+
+def interactive_graphviz_draw(G1, type='notebook', mode='simple', filter='none'):
+    G = G1.copy()
+
+    for node, data in G.nodes(data=True):
+        for key, value in data.items():
+            if isinstance(value, list):
+                # Convert list to a JSON-formatted string
+                G.nodes[node][key] = json.dumps(value)
+
+    # Iterate over all edges in the graph to check and modify the attributes
+    for u, v, data in G.edges(data=True):
+        # Iterate over each attribute in the edge's data dictionary
+        for attr_key, attr_value in list(data.items()):
+            # Check if the attribute value is of a type that needs to be serialized (e.g., list or dict)
+            if attr_key == "function":
+                # Convert the type object to its fully qualified name as a string
+                data[attr_key] = f"k"
+            if isinstance(attr_value, (list, dict)):
+                # Convert the value to a JSON string and update the attribute
+                print(data[attr_key])
+                data[attr_key] = json.dumps(attr_value)
+                print(data[attr_key])
+
+
+
+    nodes_to_remove = [node for node, attrs in G.nodes(data=True) if
+                       attrs.get('alias') == 'trainY' or attrs.get('alias') == 'testY']
+
+    G.remove_nodes_from(nodes_to_remove)
+
+    if filter == 'without_load':
+        G.remove_node('source')
+    # Compute and set depth for each node
+    blue_nodes = []
+    for node_id in G.nodes:
+        if node_id == 'source':
+            # pos[node_id] = np.array([0, depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), 0])
+            G.nodes[node_id]['color'] = 'red'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+
+        elif G.nodes[node_id]['type'] == 'super' or G.nodes[node_id]['type'] == 'split':
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'black'
+            G.nodes[node_id]['edgecolors'] = 'blue'
+            G.nodes[node_id]['shape'] = 'point'
+            G.nodes[node_id]['width'] = 0.03
+            blue_nodes.append(node_id)
+
+        elif G.nodes[node_id]['type'] == 'fitted_operator':
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'green'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+
+        else:
+            # pos[node_id] = np.array([random.uniform(-2, 2), depth - G.nodes[node_id]['depth']])
+            # pos[node_id] = np.array([-(depth - G.nodes[node_id]['depth']), random.uniform(-graph_size, graph_size)])
+            G.nodes[node_id]['color'] = 'blue'
+            G.nodes[node_id]['size'] = 100
+            G.nodes[node_id]['shape'] = 'rectangle'
+    if mode == 'full':
+        labels = {node: "" if node in blue_nodes else str(node) for node in G.nodes()}
+    elif mode == 'use_alias':
+        labels = {node: "" if node in blue_nodes else ( "[" + G.nodes[node]['alias'] + "]" + "[" + G.nodes[node]['type'] + "]") for node in G.nodes()}
+    else:
+        labels = {node: "" if node in blue_nodes else (str(node)) for node in
+                  G.nodes()}
+        #labels = {node: "" if node in blue_nodes else (str(node) + "[" + G.nodes[node]['type'] + "]") for node in
+        #          G.nodes()}
+    for node, label in labels.items():
+        G.nodes[node]['label'] = label
+
+    nt = Network(notebook=True)
+    # Populate the Pyvis network with the nodes and edges from the NetworkX graph
+    nt.from_nx(G)
+
+    nt.show("augmented.html")
+
+
+def graphviz_draw(G1, type='notebook', mode='simple', filter='none', id = 'none'):
     G = G1.copy()
 
     nodes_to_remove = [node for node, attrs in G.nodes(data=True) if
@@ -465,7 +587,7 @@ def graphviz_draw(G1, type='notebook', mode='simple', filter='none'):
     for node, label in labels.items():
         G.nodes[node]['label'] = label
     A = nx.nx_agraph.to_agraph(G)
-    A.graph_attr['rankdir'] = 'TD'
+    A.graph_attr['rankdir'] = 'LR'
     for edge in A.edges():
         if G[edge[0]][edge[1]]['type'] == 'super' or G[edge[0]][edge[1]]['type'] == 'split':
             edge.attr['arrowhead'] = 'none'
@@ -481,12 +603,13 @@ def graphviz_draw(G1, type='notebook', mode='simple', filter='none'):
     A.layout(prog='dot')
 
     if (type != 'notebook'):
-        file_path = 'graph.png'
+        file_path = str(id)+'.png'
         A.draw(file_path)
         webbrowser.open('file://' + os.path.realpath(file_path))
 
     else:
         png = A.draw(format='png')
+        #display(Image(png, width=500, height=500))
         display(Image(png))
 
 
